@@ -17,6 +17,7 @@ export function PcSidebar() {
   const selectedIds = usePcStore(state => state.selectedIds)
   const connectionStatus = usePcStore(state => state.connectionStatus)
   const toggleSelection = usePcStore(state => state.toggleSelection)
+  const selectOnly = usePcStore(state => state.selectOnly)
   const selectAll = usePcStore(state => state.selectAll)
   const clearSelection = usePcStore(state => state.clearSelection)
   const addPc = usePcStore(state => state.addPc)
@@ -30,18 +31,32 @@ export function PcSidebar() {
   const [checking, setChecking] = useState(false)
 
   const persistPcs = async (nextPcs: ManagedPc[]) => {
-    await savePcs(nextPcs)
+    const result = await savePcs(nextPcs)
+    if (result.trustedHosts && !result.trustedHosts.success) {
+      toast.warning(
+        `TrustedHosts güncellenemedi: ${result.trustedHosts.error}. Uygulamayı yönetici olarak başlatın.`
+      )
+    } else if (result.trustedHosts?.added?.length) {
+      toast.success(
+        `TrustedHosts güncellendi: ${result.trustedHosts.added.join(', ')}`
+      )
+    }
+    return result
   }
 
   const handleSavePc = async (pc: ManagedPc) => {
-    const exists = pcs.some(p => p.id === pc.id)
+    const currentPcs = usePcStore.getState().pcs
+    const exists = currentPcs.some(p => p.id === pc.id)
+    const nextPcs = exists
+      ? currentPcs.map(p => (p.id === pc.id ? pc : p))
+      : [...currentPcs, pc]
+
     if (exists) {
       updatePc(pc)
-      await persistPcs(pcs.map(p => (p.id === pc.id ? pc : p)))
     } else {
       addPc(pc)
-      await persistPcs([...pcs, pc])
     }
+    await persistPcs(nextPcs)
     toast.success(exists ? 'PC güncellendi' : 'PC eklendi')
   }
 
@@ -135,21 +150,27 @@ export function PcSidebar() {
                   checked={selectedIds.has(pc.id)}
                   onCheckedChange={() => toggleSelection(pc.id)}
                 />
-                <Monitor className="size-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-medium">{pc.name}</span>
-                    {status && (
-                      <Badge
-                        variant={status.online ? 'default' : 'secondary'}
-                        className="h-5 px-1.5 text-[10px]"
-                      >
-                        {status.online ? 'Online' : 'Offline'}
-                      </Badge>
-                    )}
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  onClick={() => selectOnly(pc.id)}
+                >
+                  <Monitor className="size-4 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium">{pc.name}</span>
+                      {status && (
+                        <Badge
+                          variant={status.online ? 'default' : 'secondary'}
+                          className="h-5 px-1.5 text-[10px]"
+                        >
+                          {status.online ? 'Online' : 'Offline'}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">{pc.address}</p>
                   </div>
-                  <p className="truncate text-xs text-muted-foreground">{pc.address}</p>
-                </div>
+                </button>
                 <Button
                   size="icon"
                   variant="ghost"
@@ -177,7 +198,10 @@ export function PcSidebar() {
 
       <AddPcDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={open => {
+          setDialogOpen(open)
+          if (!open) setEditingPc(null)
+        }}
         onSave={handleSavePc}
         editingPc={editingPc}
       />

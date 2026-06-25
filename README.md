@@ -1,118 +1,93 @@
 # Ofis Yönetim
 
-Ofisteki Windows bilgisayarları tek merkezden yönetmek için yerel web uygulaması. PC listesi, hızlı işlemler (disk durumu, çalışan programlar vb.), dosya gönderme ve özel PowerShell komutları desteklenir.
+Ofisteki Windows bilgisayarları Tailscale üzerinden tek merkezden yönetmek için yerel uygulama. PC listesi, hızlı işlemler, dosya gönderme ve özel PowerShell komutları.
 
-**Visual Studio veya Rust gerekmez** — sadece Node.js yeterlidir.
+**Gereksinim:** Node.js 20+, Windows 10/11, Tailscale.
 
-## Gereksinimler
-
-### Yönetim bilgisayarı (bu uygulamayı çalıştırdığınız PC)
-
-- [Node.js](https://nodejs.org/) 20 veya üzeri
-- Windows 10/11
-- [Tailscale](https://tailscale.com/) (tüm PC'ler aynı ağda olmalı)
-- PowerShell (Windows ile birlikte gelir)
-
-### Hedef bilgisayarlar (yönetilecek 15 PC)
-
-Her birinde:
-
-1. **Tailscale** kurulu ve yönetim PC ile aynı Tailnet'te
-2. **WinRM** açık (uzaktan komut için)
-
-Yönetici PowerShell ile hedef PC'de bir kez:
-
-```powershell
-Enable-PSRemoting -Force
-Set-Item WSMan:\localhost\Client\TrustedHosts -Value "*" -Force
-```
-
-> Güvenlik için production ortamında `TrustedHosts` değerini sadece Tailscale IP aralığınızla sınırlayın.
-
-## Kurulum
+## Kurulum ve çalıştırma
 
 ```bash
 cd ofis-yonetim
 npm install
-```
-
-## Çalıştırma
-
-```bash
 npm run start
 ```
 
-Bu komut:
+- Arayüz: `http://localhost:1420`
+- API: `http://127.0.0.1:9876`
+- Kapatmak için terminalde `Ctrl+C`
 
-1. Yerel API'yi başlatır → `http://127.0.0.1:9876`
-2. Arayüzü başlatır → `http://localhost:1420`
-3. Varsayılan tarayıcıda uygulamayı açar
+> **Önemli:** `TrustedHosts` güncellemesi için terminali **Yönetici olarak** açıp `npm run start` çalıştırın. PC eklediğinizde Tailscale IP otomatik eklenir.
 
-Uygulamayı kapatmak için terminalde `Ctrl+C` kullanın.
+## Yönetim PC (bir kez)
 
-### Diğer komutlar
+**Yönetici PowerShell** ile:
 
-| Komut | Açıklama |
-|-------|----------|
-| `npm run server` | Sadece arka plan API'si |
-| `npm run dev` | Sadece arayüz (geliştirme) |
-| `npm run build` | Production build (dist/) |
-| `npm run typecheck` | TypeScript kontrolü |
+```powershell
+Start-Service WinRM
+Set-Service WinRM -StartupType Automatic
+```
 
-## İlk kullanım
+Uygulamada **Kimlik Bilgileri** → `ofisadmin` ve `GucluSifre123!` (**bir kez**).
 
-1. `npm run start` ile uygulamayı açın
-2. Sol panelden **+** ile PC ekleyin
-   - **Ad:** Örn. `Muhasebe-1`
-   - **Tailscale IP:** Örn. `100.x.x.x` (Tailscale uygulamasından bakın)
-3. PC'leri seçin (checkbox)
-4. Orta panelden işlem yapın:
-   - **Hızlı İşlemler** — Butona tıklayın, komut otomatik çalışır
-   - **Dosya Gönder** — Dosya seçip hedef klasöre gönderin
-   - **Özel Komut** — İleri düzey PowerShell komutu yazın
-5. Sonuçlar sağ panelde görünür
+## Yeni PC ekleme
 
-## Bağlantı kontrolü
+### 1. Hedef PC — tek tık kurulum (her bilgisayarda bir kez)
 
-Sol paneldeki **yenile** ikonuna tıklayarak seçili PC'lerin erişilebilir olup olmadığını kontrol edebilirsiniz (Online / Offline).
+`scripts` klasöründeki **`hedef-pc-kurulum.bat`** dosyasına çift tıklayın (yönetici izni isteyecektir).
+
+Manuel kurulum isterseniz:
+
+```powershell
+Enable-PSRemoting -Force
+Start-Service WinRM
+Set-Service WinRM -StartupType Automatic
+
+New-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System `
+  -Name LocalAccountTokenFilterPolicy -Value 1 -PropertyType DWord -Force
+
+New-LocalUser -Name "ofisadmin" -Password (ConvertTo-SecureString "GucluSifre123!" -AsPlainText -Force)
+Add-LocalGroupMember -Group "Administrators" -Member "ofisadmin"
+Add-LocalGroupMember -Group "Uzaktan Yönetim Kullanıcıları" -Member "ofisadmin"
+
+hostname   # bilgisayar adını not edin
+```
+
+Ağ **Genel** ise ağı **Özel** yapın veya güvenlik duvarında 5985 portunu açın.
+
+### 2. Uygulamada PC kaydı
+
+Sol panel → **+**:
+
+| Alan | Örnek |
+|------|--------|
+| Ad | `PC-8` |
+| Bilgisayar adı | `DESKTOP-CNT8` |
+| Tailscale IP | `100.x.x.x` |
+
+Kaydettiğinizde **TrustedHosts otomatik güncellenir** — PowerShell ile IP eklemeniz gerekmez.
+
+## Günlük kullanım
+
+1. PC'leri seçin
+2. Hızlı işlem / dosya gönder / özel komut
+3. Sonuçlar sağ panelde
 
 ## Sorun giderme
 
-### "Yerel API'ye bağlanılamadı"
+| Hata | Çözüm |
+|------|--------|
+| TrustedHosts güncellenemedi | `npm run start`'ı **yönetici** terminalde çalıştırın |
+| Erişim engellendi | Hedef PC'de `LocalAccountTokenFilterPolicy=1`, `ofisadmin` yöneticilerde |
+| Yerel API'ye bağlanılamadı | `npm run start` çalışıyor mu? |
 
-`npm run start` ile hem API hem arayüzün birlikte açıldığından emin olun. Port `9876` başka bir uygulama tarafından kullanılıyor olabilir.
+Log: `%USERPROFILE%\.ofis-yonetim\logs\api.log`
 
-### Komut hatası / WinRM hatası
+## Dosyalar
 
-- Hedef PC'de WinRM açık mı? (`Enable-PSRemoting -Force`)
-- Tailscale IP doğru mu?
-- Yönetim PC'den hedefe ping atılabiliyor mu?
-
-```powershell
-Test-Connection 100.x.x.x
-Invoke-Command -ComputerName 100.x.x.x -ScriptBlock { hostname }
-```
-
-### Dosya gönderilemiyor
-
-- Hedef klasörün uzak PC'de var olduğundan emin olun (örn. `C:\Temp`)
-- WinRM oturumu ve kopyalama izinleri gerekebilir
-
-## Mimari
-
-```
-Tarayıcı (React UI)  →  localhost:1420
-        ↓
-Node.js API          →  localhost:9876
-        ↓
-PowerShell / WinRM   →  Tailscale ağı üzerinden hedef PC'ler
-```
-
-PC listesi şu dosyada saklanır:
-
-```
-%USERPROFILE%\.ofis-yonetim\managed_pcs.json
-```
+| Dosya | İçerik |
+|-------|--------|
+| `managed_pcs.json` | PC listesi |
+| `winrm_credentials.json` | WinRM kimlik bilgisi |
 
 ## Lisans
 

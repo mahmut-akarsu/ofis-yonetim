@@ -50,6 +50,15 @@ app.whenReady().then(() => {
     }
     return result.filePaths[0]
   })
+  ipcMain.handle('pick-folder', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+    return result.filePaths[0]
+  })
 
   createWindow()
 

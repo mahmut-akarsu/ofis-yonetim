@@ -28,6 +28,7 @@ export function useManagedPcs() {
     mutationFn: async (pcs: ManagedPc[]) => {
       const result = await pcApi.saveManagedPcs(pcs)
       if (result.status === 'error') throw new Error(result.error)
+      return result.data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['managed-pcs'] })

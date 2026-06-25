@@ -18,6 +18,7 @@ interface OfisDesktopApi {
     remoteDir: string
   ) => Promise<import('./types/pc').RemoteOperationResult[]>
   pickFile: () => Promise<string | null>
+  pickFolder: () => Promise<string | null>
 }
 
 interface Window {

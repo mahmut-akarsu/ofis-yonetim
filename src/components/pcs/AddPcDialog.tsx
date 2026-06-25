@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -24,38 +24,47 @@ export function AddPcDialog({
   onSave,
   editingPc,
 }: AddPcDialogProps) {
-  const [name, setName] = useState(editingPc?.name ?? '')
-  const [address, setAddress] = useState(editingPc?.address ?? '')
-  const [notes, setNotes] = useState(editingPc?.notes ?? '')
+  const [name, setName] = useState('')
+  const [address, setAddress] = useState('')
+  const [hostname, setHostname] = useState('')
+  const [notes, setNotes] = useState('')
 
-  const handleOpen = (isOpen: boolean) => {
-    if (isOpen && editingPc) {
+  useEffect(() => {
+    if (!open) return
+
+    if (editingPc) {
       setName(editingPc.name)
       setAddress(editingPc.address)
+      setHostname(editingPc.hostname ?? '')
       setNotes(editingPc.notes ?? '')
-    } else if (isOpen) {
+    } else {
       setName('')
       setAddress('')
+      setHostname('')
       setNotes('')
     }
+  }, [open, editingPc])
+
+  const handleOpenChange = (isOpen: boolean) => {
     onOpenChange(isOpen)
   }
 
   const handleSubmit = () => {
-    if (!name.trim() || !address.trim()) return
+    if (!name.trim() || !address.trim() || !hostname.trim()) return
 
     onSave({
       id: editingPc?.id ?? crypto.randomUUID(),
       name: name.trim(),
       address: address.trim(),
+      hostname: hostname.trim(),
       notes: notes.trim() || null,
     })
     onOpenChange(false)
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpen}>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent key={editingPc?.id ?? 'new'}>
         <DialogHeader>
           <DialogTitle>{editingPc ? 'PC Düzenle' : 'PC Ekle'}</DialogTitle>
         </DialogHeader>
@@ -70,7 +79,20 @@ export function AddPcDialog({
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="pc-address">Tailscale IP / Hostname</Label>
+            <Label htmlFor="pc-hostname">Bilgisayar adı</Label>
+            <Input
+              id="pc-hostname"
+              placeholder="DESKTOP-CNT7"
+              value={hostname}
+              onChange={e => setHostname(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Uzak PC&apos;de <span className="font-mono">hostname</span> komutunun
+              çıktısı. Kimlik bilgilerindeki kullanıcı ile otomatik eşleşir.
+            </p>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="pc-address">Tailscale IP</Label>
             <Input
               id="pc-address"
               placeholder="100.x.x.x"
@@ -92,7 +114,10 @@ export function AddPcDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             İptal
           </Button>
-          <Button onClick={handleSubmit} disabled={!name.trim() || !address.trim()}>
+          <Button
+            onClick={handleSubmit}
+            disabled={!name.trim() || !address.trim() || !hostname.trim()}
+          >
             Kaydet
           </Button>
         </DialogFooter>

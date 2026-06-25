@@ -9,4 +9,5 @@ contextBridge.exposeInMainWorld('ofisApi', {
   deployFileToPcs: (pcs, localPath, remoteDir) =>
     ipcRenderer.invoke('deploy-file', { pcs, localPath, remoteDir }),
   pickFile: () => ipcRenderer.invoke('pick-file'),
+  pickFolder: () => ipcRenderer.invoke('pick-folder'),
 })

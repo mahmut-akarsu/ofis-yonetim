@@ -9,22 +9,26 @@ import type {
 interface PcState {
   pcs: ManagedPc[]
   selectedIds: Set<string>
+  remoteDirsByPcId: Record<string, string>
   connectionStatus: Record<string, PcConnectionStatus>
   results: RemoteOperationResult[]
   isRunning: boolean
-  activeTab: 'quick' | 'custom' | 'file'
+  activeTab: 'quick' | 'custom' | 'file' | 'terminal'
 
   setPcs: (pcs: ManagedPc[]) => void
   addPc: (pc: ManagedPc) => void
   removePc: (id: string) => void
   updatePc: (pc: ManagedPc) => void
   toggleSelection: (id: string) => void
+  selectOnly: (id: string) => void
   selectAll: () => void
   clearSelection: () => void
+  setRemoteDirForPc: (pcId: string, dir: string) => void
+  getRemoteDirForPc: (pcId: string) => string
   setConnectionStatus: (statuses: PcConnectionStatus[]) => void
   setResults: (results: RemoteOperationResult[]) => void
   setIsRunning: (running: boolean) => void
-  setActiveTab: (tab: 'quick' | 'custom' | 'file') => void
+  setActiveTab: (tab: 'quick' | 'custom' | 'file' | 'terminal') => void
   getSelectedPcs: () => ManagedPc[]
 }
 
@@ -33,13 +37,29 @@ export const usePcStore = create<PcState>()(
     (set, get) => ({
       pcs: [],
       selectedIds: new Set(),
+      remoteDirsByPcId: {},
       connectionStatus: {},
       results: [],
       isRunning: false,
       activeTab: 'quick',
 
       setPcs: pcs =>
-        set({ pcs, selectedIds: new Set(pcs.map(p => p.id)) }, undefined, 'setPcs'),
+        set(
+          state => {
+            const validIds = new Set(pcs.map(p => p.id))
+            const selectedIds = new Set(
+              [...state.selectedIds].filter(id => validIds.has(id))
+            )
+            const remoteDirsByPcId = Object.fromEntries(
+              Object.entries(state.remoteDirsByPcId).filter(([id]) =>
+                validIds.has(id)
+              )
+            )
+            return { pcs, selectedIds, remoteDirsByPcId }
+          },
+          undefined,
+          'setPcs'
+        ),
 
       addPc: pc =>
         set(
@@ -56,9 +76,11 @@ export const usePcStore = create<PcState>()(
           state => {
             const selectedIds = new Set(state.selectedIds)
             selectedIds.delete(id)
+            const { [id]: _, ...remoteDirsByPcId } = state.remoteDirsByPcId
             return {
               pcs: state.pcs.filter(p => p.id !== id),
               selectedIds,
+              remoteDirsByPcId,
             }
           },
           undefined,
@@ -89,6 +111,9 @@ export const usePcStore = create<PcState>()(
           'toggleSelection'
         ),
 
+      selectOnly: id =>
+        set({ selectedIds: new Set([id]) }, undefined, 'selectOnly'),
+
       selectAll: () =>
         set(
           state => ({ selectedIds: new Set(state.pcs.map(p => p.id)) }),
@@ -98,6 +123,17 @@ export const usePcStore = create<PcState>()(
 
       clearSelection: () =>
         set({ selectedIds: new Set() }, undefined, 'clearSelection'),
+
+      setRemoteDirForPc: (pcId, dir) =>
+        set(
+          state => ({
+            remoteDirsByPcId: { ...state.remoteDirsByPcId, [pcId]: dir },
+          }),
+          undefined,
+          'setRemoteDirForPc'
+        ),
+
+      getRemoteDirForPc: pcId => get().remoteDirsByPcId[pcId] ?? '',
 
       setConnectionStatus: statuses =>
         set(
